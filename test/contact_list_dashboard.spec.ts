@@ -58,7 +58,8 @@ describeComConta('Contact List API - conta do dashboard', () => {
   let idCompleto = '';
   let idMinimo = '';
 
-  p.request.setDefaultTimeout(60000);
+  // O router da Heroku corta qualquer requisição em 30 s (503).
+  p.request.setDefaultTimeout(35000);
 
   beforeAll(async () => {
     p.reporter.add(rep);
@@ -179,6 +180,24 @@ describeComConta('Contact List API - conta do dashboard', () => {
         .expectStatus(StatusCodes.OK)
         .expectJsonSchema({ type: 'array', items: contactSchema })
         .expectJsonLike([{ _id: idCompleto }, { _id: idMinimo }]);
+    });
+
+    it('Consultas respondem JSON em menos de 3 segundos', async () => {
+      await p
+        .spec()
+        .get(`${baseUrl}/contacts/${idCompleto}`)
+        .withBearerToken(token)
+        .expectStatus(StatusCodes.OK)
+        .expectHeaderContains('content-type', 'application/json')
+        .expectResponseTime(3000);
+
+      await p
+        .spec()
+        .get(`${baseUrl}/contacts`)
+        .withBearerToken(token)
+        .expectStatus(StatusCodes.OK)
+        .expectHeaderContains('content-type', 'application/json')
+        .expectResponseTime(3000);
     });
 
     it('Retorna 400 para id em formato inválido', async () => {

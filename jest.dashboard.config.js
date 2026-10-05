@@ -13,7 +13,7 @@ module.exports = {
   testEnvironment: 'node',
   testMatch: ['**/test/contact_list_dashboard.spec.ts'],
   verbose: true,
-  testTimeout: 30000,
+  testTimeout: 120000,
   reporters: [
     'default',
     [
