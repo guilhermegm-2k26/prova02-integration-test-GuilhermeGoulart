@@ -43,7 +43,7 @@ Sem token, com token inválido ou com token de uma sessão encerrada por logout,
 | POST | `/users/login` | não | Faz login e retorna token |
 | GET | `/users/me` | sim | Retorna o perfil do usuário logado |
 | PATCH | `/users/me` | sim | Atualiza campos do usuário |
-| POST | `/users/logout` | sim | Invalida o token atual |
+| POST | `/users/logout` | sim | Encerra todas as sessões do usuário |
 | DELETE | `/users/me` | sim | Exclui a conta |
 
 **POST /users** (a mesma resposta vale para o login)
@@ -149,63 +149,32 @@ Sem token, com token inválido ou com token de uma sessão encerrada por logout,
 
 ## Casos de teste
 
-| Grupo | Caso | Esperado | Regra |
-|---|---|---|---|
-| Cadastro | Corpo vazio | 400 com erros de `firstName`, `lastName` e `password` | RN01 |
-| Cadastro | E-mail já cadastrado | 400 | RN02 |
-| Cadastro | E-mail inválido | 400 | RN03 |
-| Cadastro | Senha com 3 caracteres | 400 | RN04 |
-| Cadastro | Senha com 101 caracteres | 400 | RN04 |
-| Cadastro | Nome com 21 caracteres | 400 | RN05 |
-| Cadastro | Senha com 7 e nome com 20 caracteres (limite exato) | 201 | RN04, RN05 |
-| Cadastro | E-mail duplicado em maiúsculas | 400 | RN02, RN17 |
-| Cadastro | Nome só com espaços | 400 | RN18 |
-| Cadastro | JSON malformado | 400 | — |
-| Login | Credenciais válidas | 200 com token (JSON Schema validado) | — |
-| Login | Senha errada | 401 | RN06 |
-| Login | Sem senha | 401 | RN06 |
-| Login | E-mail não cadastrado | 401 | RN06 |
-| Login | E-mail em maiúsculas e com espaços | 200 | RN17 |
-| Login | Injeção NoSQL (`{"$ne": null}`) | 401 | RN06 |
-| Perfil | `GET /users/me` | 200, sem campo `password` | RN08 |
-| Perfil | Sem token | 401 | RN07 |
-| Perfil | Token inválido | 401 | RN07 |
-| Perfil | `PATCH` do nome | 200 com o nome novo | — |
-| Perfil | `PATCH` com e-mail inválido | 400 | RN03 |
-| Perfil | `PATCH` com senha curta | 400 | RN04 |
-| Perfil | Token com assinatura adulterada | 401 | RN07 |
-| Contatos | Cadastro completo | 201, `owner` igual ao id do usuário | — |
-| Contatos | Sem nome e sobrenome | 400 | RN09 |
-| Contatos | E-mail inválido | 400 | RN03 |
-| Contatos | Telefone inválido | 400 | RN10 |
-| Contatos | Data `10/05/1990` | 400 | RN10 |
-| Contatos | CEP inválido | 400 | RN10 |
-| Contatos | Data inexistente `2020-02-30` | 400 | RN10 |
-| Contatos | Cada campo 1 caractere acima do limite (8 casos) | 400, `maxlength` | RN19 |
-| Contatos | Acentos, apóstrofo e emoji nos nomes | 201, salvos sem alteração | — |
-| Contatos | Campo extra no corpo | 201, campo ignorado | RN20 |
-| Contatos | Corpo de 110 KB | 413 | RN22 |
-| Contatos | Sem token | 401 | RN07 |
-| Contatos | Listagem | 200, array com o contato criado | — |
-| Contatos | Busca por id | 200 | — |
-| Contatos | Id inválido | 400 | RN11 |
-| Contatos | Id inexistente | 404 | RN12 |
-| Contatos | `PUT` parcial | 400 | RN13 |
-| Contatos | `PUT` completo | 200 com todos os dados novos | RN13 |
-| Contatos | `PATCH` de um campo | 200, só esse campo muda | RN13 |
-| Contatos | Outro usuário tenta `GET`, `PATCH` e `DELETE` | 404, lista vazia, contato intacto | RN14 |
-| Contatos | Exclusão | 200, `Contact deleted` | — |
-| Contatos | Busca após exclusão | 404 | RN12 |
-| Contatos | Excluir o mesmo contato de novo | 404 | RN12 |
-| Desempenho | Listagem | 200 JSON em menos de 3 s | — |
-| Desempenho | 10 cadastros em paralelo | 10 × 201, ids distintos | — |
-| Timeout | Rota sem tratamento (`PUT /users/me`) | Cliente aborta em 5 s com `Timeout reached` | B06 |
-| Bugs | Ver tabela abaixo (5 testes) | Comportamento atual | B01 a B05 |
-| Sessão | Novo login | Token antigo continua válido | RN21 |
-| Sessão | Logout com o 2º token | O 1º e o 2º token passam a dar 401 | RN15 |
-| Sessão | Login após excluir a conta | 401 | RN16 |
+A suíte principal tem **20 cenários**, organizados por método HTTP. Antes deles, o `beforeAll` cadastra um usuário descartável (`POST /users`) e guarda o token.
 
-**Total: 64 testes.** Os `401` de login e o `404` de contato inexistente voltam com o corpo vazio, então nesses casos os testes validam só o status.
+| # | Método | Caso | Esperado | Regra |
+|---|---|---|---|---|
+| 1 | POST | Cadastro de usuário com corpo vazio | 400 com erros de `firstName`, `lastName` e `password` | RN01 |
+| 2 | POST | Cadastro com e-mail já utilizado | 400, `Email address is already in use` | RN02 |
+| 3 | POST | Login com credenciais válidas | 200 com token (JSON Schema validado) | — |
+| 4 | POST | Login com senha errada | 401 | RN06 |
+| 5 | POST | Cadastro de contato completo | 201, `owner` igual ao id do usuário | — |
+| 6 | POST | Contato sem nome e sobrenome | 400 | RN09 |
+| 7 | POST | Contato com e-mail inválido | 400, `Email is invalid` | RN03 |
+| 8 | POST | Contato sem token | 401, `Please authenticate.` | RN07 |
+| 9 | GET | Perfil do usuário logado | 200, sem campo `password` | RN08 |
+| 10 | GET | Listagem de contatos | 200, array com o contato criado | — |
+| 11 | GET | Busca do contato por id | 200 | — |
+| 12 | GET | Contato inexistente | 404 | RN12 |
+| 13 | GET | Outro usuário tenta acessar o contato | 404 | RN14 |
+| 14 | PUT | Substituição completa do contato | 200 com todos os dados novos | RN13 |
+| 15 | PUT | Atualização parcial | 400, `lastName` obrigatório | RN13 |
+| 16 | PATCH | Atualização de um campo do contato | 200, só esse campo muda | RN13 |
+| 17 | PATCH | Contato com telefone inválido | 400, `Phone number is invalid` | RN10 |
+| 18 | PATCH | Nome do usuário | 200 com o nome novo | — |
+| 19 | DELETE | Exclusão do contato | 200 `Contact deleted`; depois, `GET` dá 404 | RN12 |
+| 20 | DELETE | Exclusão da conta | 200; depois, o login dá 401 | RN16 |
+
+**Total: 20 testes.** Os `401` de login e o `404` de contato inexistente voltam com o corpo vazio, então nesses casos os testes validam só o status.
 
 ## Timeouts
 
@@ -214,11 +183,10 @@ Sem token, com token inválido ou com token de uma sessão encerrada por logout,
 - Configuração adotada:
   - **Requisição** (`p.request.setDefaultTimeout`): 35 s. Fica acima dos 30 s da Heroku, então um travamento aparece como `503`, e não como erro do cliente.
   - **Teste** (`jest.setTimeout` / `testTimeout`): 120 s. Comporta vários requests por teste. Antes, o Jest (30 s) podia matar o teste antes do Pactum (60 s) desistir, e o erro ficava confuso.
-  - **Teste de timeout:** chama uma rota que trava e confirma que o cliente desiste sozinho em 5 s.
 
 ## Bugs encontrados
 
-Os testes marcados com `[BUG]` validam o **comportamento atual** da API. Se a API for corrigida, eles vão falhar, e isso avisa que o comportamento mudou.
+Comportamentos inesperados encontrados ao explorar a API. Eles ficaram fora da suíte de 20 cenários e estão registrados aqui para referência.
 
 | # | Bug | Como reproduzir | Risco |
 |---|---|---|---|
@@ -230,7 +198,7 @@ Os testes marcados com `[BUG]` validam o **comportamento atual** da API. Se a AP
 | B06 | **Método não suportado em rota da API trava a requisição** | `PUT /users/me`, `POST /contacts/:id` ou `DELETE /contacts` ficam 30 s sem resposta até o `503` da Heroku | Médio: prende conexões |
 | B07 | **Rota inexistente responde `200`** com uma página HTML de 404 | `GET /rota-que-nao-existe` | Baixo |
 
-Também foi observado, mas não virou teste: o `PATCH /users/me` aceita `{"tokens": []}` e derruba as sessões do próprio usuário; e o header `x-powered-by: Express` fica exposto.
+Também foi observado: o `PATCH /users/me` aceita `{"tokens": []}` e derruba as sessões do próprio usuário; e o header `x-powered-by: Express` fica exposto.
 
 ## Suíte da conta do dashboard
 
